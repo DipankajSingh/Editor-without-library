@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { useEditorContext } from '../context/EditorProvider';
+import { charWidthInPxl } from '../utils/measurement';
 
 const Line = memo(function Line({line, lineIndex, isActive}) {
   const { textSize } = useEditorContext();
@@ -9,10 +10,11 @@ const Line = memo(function Line({line, lineIndex, isActive}) {
         whiteSpace: 'pre-wrap',
         fontFamily: 'monospace, Arial, sans-serif', 
         fontSize: `${textSize}px`,
-        lineHeight: '1.5',
+        
+        height: `${ charWidthInPxl('W', textSize)}px`,
         width: 'fit-content',
       }} 
-      className={`flex flex-row`}
+      className={`flex flex-row before:content-['${lineIndex + 1}']}`}
     >
        {line.text.map((segment, index) => (
         <span 

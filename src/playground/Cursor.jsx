@@ -4,15 +4,22 @@ import { charWidthInPxl } from '../utils/measurement';
 
 export default function Cursor({ playgroundRef }) {
   const cursorRef = useRef(null);
+  const cursorPositionRef = useRef(0);
   const {
     cursorPositionInActiveLine,
     handleCursorPositionChange,
     activeLine,
     lineData,
     updateActiveLine,
-    textSize
+    textSize,
+    handleEnterPress,
+    handleActiveLineChange,
+    totalLines
   } = useEditorContext();
 
+
+
+  // Memoize getCurrentCharAtCursor with all its dependencies
   const getCurrentCharAtCursor = useCallback((direction) => {
     const currentLine = lineData[activeLine];
     const flatText = currentLine.text.map((segment) => segment.content).join('');
@@ -23,83 +30,133 @@ export default function Cursor({ playgroundRef }) {
     }
   }, [lineData, activeLine, cursorPositionInActiveLine]);
 
+  // Memoize updateCursorPosition with all its dependencies
   const updateCursorPosition = useCallback((direction) => {
     if (!playgroundRef.current || !cursorRef.current) return;
   
-    const playgroundRect = playgroundRef.current.getBoundingClientRect();
-    const cursorRect = cursorRef.current.getBoundingClientRect();
-    const currentLeft = cursorRect.left - playgroundRect.left;
-  
     const currentChar = getCurrentCharAtCursor(direction);
     if (!currentChar) {
-      console.warn('No character found at cursor position');
       return;
     }
   
     const charWidth = charWidthInPxl(currentChar, textSize);
     if (!charWidth) {
-      console.warn('Invalid character width');
       return;
     }
   
     const offset = direction === "left" ? -charWidth : charWidth;
-    const newLeft = Math.max(0, currentLeft + offset);
+    cursorPositionRef.current = Math.max(0, cursorPositionRef.current + offset);
   
-    cursorRef.current.style.left = `${newLeft}px`;
-  }, [getCurrentCharAtCursor, textSize]);
+    cursorRef.current.style.transform = `translateX(${cursorPositionRef.current}px)`;
+  }, [getCurrentCharAtCursor, textSize, playgroundRef]);
 
+  // Memoize movement handlers
   const moveLeft = useCallback(() => {
-    if (cursorPositionInActiveLine === 0) return;
+    if (cursorPositionInActiveLine === 0) {
+      // Only move to previous line if we're not at the first line
+      if (activeLine > 0) {
+        handleActiveLineChange(activeLine - 1);
+        // Move cursor to end of previous line
+        const prevLineLength = lineData[activeLine - 1].length;
+        handleCursorPositionChange(prevLineLength);
+      }
+      return;
+    }
     handleCursorPositionChange(cursorPositionInActiveLine - 1);
     updateCursorPosition("left");
-  }, [cursorPositionInActiveLine, handleCursorPositionChange, updateCursorPosition]);
+  }, [cursorPositionInActiveLine, activeLine, lineData, handleActiveLineChange, handleCursorPositionChange, updateCursorPosition]);
 
   const moveRight = useCallback(() => {
-    if (cursorPositionInActiveLine === lineData[activeLine].length) return;
+    if (cursorPositionInActiveLine === lineData[activeLine].length) {
+      // Only move to next line if we're not at the last line
+      if (activeLine < lineData.length - 1) {
+        handleActiveLineChange(activeLine + 1);
+        // Move cursor to start of next line
+        handleCursorPositionChange(0);
+      }
+      return;
+    }
     handleCursorPositionChange(cursorPositionInActiveLine + 1);
     updateCursorPosition("right");
-  }, [cursorPositionInActiveLine, lineData, activeLine, handleCursorPositionChange, updateCursorPosition]);
+  }, [cursorPositionInActiveLine, lineData, activeLine, handleActiveLineChange, handleCursorPositionChange, updateCursorPosition]);
 
+  // Memoize text handlers
   const insertText = useCallback((char) => {
     updateActiveLine(char, "char");
     handleCursorPositionChange(cursorPositionInActiveLine + 1);
-    updateCursorPosition("right");
-  }, [updateActiveLine, handleCursorPositionChange, cursorPositionInActiveLine, updateCursorPosition]);
+    // Only update cursor position if not at the end of line
+    const currentLine = lineData[activeLine];
+    const isEndOfLine = cursorPositionInActiveLine === currentLine.length;
+    if (!isEndOfLine) {
+      updateCursorPosition("right");
+    }
+  }, [updateActiveLine, handleCursorPositionChange, cursorPositionInActiveLine, updateCursorPosition, lineData, activeLine]);
 
-  const deleteText = useCallback(() => {
-    updateActiveLine("", "backspace");
+  const deleteText = useCallback((key) => {
+    if (key === 'Backspace') {
+      updateActiveLine("", "backspace");
+    } else if (key === 'Delete') {
+      updateActiveLine("", "delete");
+    }
     handleCursorPositionChange(cursorPositionInActiveLine - 1);
-    updateCursorPosition("left");
+    // Only update cursor position if not at the start of line
+    if (cursorPositionInActiveLine > 0) {
+      updateCursorPosition("left");
+    }
   }, [updateActiveLine, handleCursorPositionChange, cursorPositionInActiveLine, updateCursorPosition]);
 
   const handleKeyDown = useCallback((event) => {
-    if (event.key === 'ArrowLeft') {
-      moveLeft();
-    } else if (event.key === 'ArrowRight') {
-      moveRight();
-    } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
-      insertText(event.key);
-    } else if (event.key === 'Backspace') {
-      deleteText();
-    }
-  }, [moveLeft, moveRight, insertText, deleteText]);
+    requestAnimationFrame(() => {
+      if (event.key === 'ArrowLeft') {
+        moveLeft();
+      } else if (event.key === 'ArrowRight') {
+        moveRight();
+      } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
+        insertText(event.key);
+      } else if (event.key === 'Backspace' || event.key === 'Delete') {
+        deleteText(event.key);
+      } else if (event.key === 'Enter') {
+        handleEnterPress();
+      }else if (event.key === 'ArrowUp') {
+        if (activeLine > 0) {
+          handleActiveLineChange(activeLine - 1);
+        }
+      }else if (event.key === 'ArrowDown') {
+        if (activeLine < lineData.length - 1) {
+          handleActiveLineChange(activeLine + 1);
+        }
+      }
+    });
+  }, [moveLeft, moveRight, insertText, deleteText, handleEnterPress]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
+  // Update cursor position when lineData, activeLine, or cursorPositionInActiveLine changes
+  useEffect(() => {
+    const flatText = lineData[activeLine].text.map((segment) => segment.content).join('');
+    const newPosition = charWidthInPxl(flatText.slice(0, cursorPositionInActiveLine), textSize);
+    cursorPositionRef.current = newPosition;
+    cursorRef.current.style.transform = `translate(${newPosition}px, ${(textSize+15) * activeLine}px)`;
+  }, [lineData, activeLine, cursorPositionInActiveLine, textSize]);
+
+  function debugText() {
+    let lines = [];
+    lineData.forEach((line, index) => {
+      lines.push(line.text.map((segment) => segment.content).join(''))
+  
+    });
+      console.log(lines, lineData.length, activeLine, cursorPositionInActiveLine)
+  }
+  debugText()
   return (
     <div
       ref={cursorRef}
+      className='absolute w-[2px] h-[30px] bg-slate-200'
       style={{
-        position: 'absolute',
-        width: '0.5px',
-        height: `${textSize}px`,
-        left: '6.5px',
-        top: '12px',
-        backgroundColor: 'white',
-        transition: 'left 0.05s ease'
+        transform: `translateX(${cursorPositionRef.current}px)`,
       }}
     />
   );

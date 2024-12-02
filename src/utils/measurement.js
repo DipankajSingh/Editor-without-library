@@ -20,6 +20,3 @@ export function charWidthInPxl(char, textSize) {
   }
   return metrics.width+threshold; // Round up to ensure no partial pixels
 }
-
-
-

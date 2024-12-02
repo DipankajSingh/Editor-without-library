@@ -95,17 +95,27 @@ const mergeSegments = (prevSegment, currentSegment) => ({
   styles: prevSegment.styles
 });
 
+
+
+
+
 export const EditorProvider = ({ children }) => {
-  const [lineData, setLineData] = useState(lines);
-  const [cursorPositionInActiveLine, setCursorPositionInActiveLine] = useState(0);
   const [activeLine, setActiveLine] = useState(0);
+  const [lineData, setLineData] = useState(lines);
+  // Initialize cursor position at the end of the active line
+  const [cursorPositionInActiveLine, setCursorPositionInActiveLine] = useState(() => {
+    return lines[0].text.reduce((total, segment) => total + segment.content.length, 0);
+  });
   const [textSize, setTextSize] = useState(25);
+
+  const [totalLines, setTotalLines] = useState(() => {
+    return lines.length;
+  });
 
   const handleInsertText = useCallback((currentLine, char, segmentInfo) => {
     const { activeSegmentIndex, positionInSegment } = segmentInfo;
     const newSegments = [...currentLine.text];
     const activeSegment = newSegments[activeSegmentIndex];
-    
     newSegments[activeSegmentIndex] = createUpdatedSegment(
       activeSegment,
       positionInSegment,
@@ -173,6 +183,15 @@ export const EditorProvider = ({ children }) => {
       newData[activeLine] = updatedLine;
       return newData;
     });
+
+    // Update cursor position after text insertion
+    if (action === "char") {
+      setCursorPositionInActiveLine(prev => prev + 1);
+    } else if (action === "backspace") {
+      setCursorPositionInActiveLine(prev => Math.max(0, prev - 1));
+    }else if(action==="Delete"){
+      setCursorPositionInActiveLine(prev => Math.max(0, prev + 1));
+    }
   }, [lineData, activeLine, cursorPositionInActiveLine, handleInsertText, handleBackspace]);
 
   const handleCursorPositionChange = useCallback((newCursorPositionInActiveLine) => {
@@ -180,12 +199,74 @@ export const EditorProvider = ({ children }) => {
   }, []);
 
   const handleActiveLineChange = useCallback((newActiveLine) => {
+    console.log('Line changed');
     setActiveLine(newActiveLine);
   }, []);
  
   const handleLineDataChange = useCallback((newLineData) => {
     setLineData(newLineData);
   }, []);
+
+  function handleEnterPress() {
+    const currentLine = lineData[activeLine];
+    
+
+    function createLine(content="") {
+      handleLineDataChange([...lineData, {
+        text: [{ content, styles: {} }],
+        length: content.length
+      }]);
+      handleActiveLineChange(activeLine + 1);
+    }
+
+    // if active line dont have text just add a new line
+  if((cursorPositionInActiveLine === currentLine.length) || (!currentLine.text.length)) {
+      createLine()
+    } else {
+      newLineWithTextFromCurrentLine();
+    }
+
+
+    function newLineWithTextFromCurrentLine() {
+      const currentLine = lineData[activeLine];
+      const { activeSegmentIndex, positionInSegment } = findActiveSegment(currentLine, cursorPositionInActiveLine);
+      const currentSegment = currentLine.text[activeSegmentIndex];
+      
+      // Split the active segment
+      const beforeContent = currentSegment.content.slice(0, positionInSegment);
+      const afterContent = currentSegment.content.slice(positionInSegment);
+      
+      // Create segments for both lines
+      const beforeSegments = [
+        ...currentLine.text.slice(0, activeSegmentIndex),
+        ...(beforeContent ? [{ content: beforeContent, styles: { ...currentSegment.styles } }] : [])
+      ];
+      
+      const afterSegments = [
+        ...(afterContent ? [{ content: afterContent, styles: { ...currentSegment.styles } }] : []),
+        ...currentLine.text.slice(activeSegmentIndex + 1)
+      ];
+      
+      // Create new lines with preserved styles
+      const updatedCurrentLine = {
+        text: beforeSegments,
+        length: beforeSegments.reduce((total, seg) => total + seg.content.length, 0)
+      };
+      
+      const newLine = {
+        text: afterSegments,
+        length: afterSegments.reduce((total, seg) => total + seg.content.length, 0)
+      };
+      
+      // Update line data with the split lines
+      const newLineData = [...lineData];
+      newLineData[activeLine] = updatedCurrentLine;
+      newLineData.splice(activeLine + 1, 0, newLine);
+      handleLineDataChange(newLineData);
+      handleActiveLineChange(activeLine + 1);
+      handleCursorPositionChange(0); // Move cursor to start of new line
+    }
+  }
 
   return (
     <EditorContext.Provider value={{
@@ -197,7 +278,9 @@ export const EditorProvider = ({ children }) => {
       handleActiveLineChange,
       updateActiveLine,
       textSize,
-      setTextSize
+      setTextSize,
+      handleEnterPress,
+      totalLines
       }}>
       {children}
     </EditorContext.Provider>
