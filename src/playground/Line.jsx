@@ -10,13 +10,13 @@ const Line = memo(function Line({line, lineIndex, isActive}) {
         whiteSpace: 'pre-wrap',
         fontFamily: 'monospace, Arial, sans-serif', 
         fontSize: `${textSize}px`,
-        
-        height: `${ charWidthInPxl('W', textSize)}px`,
+        lineHeight: '1',
+        height: 'fit-content',
         width: 'fit-content',
       }} 
-      className={`flex flex-row before:content-['${lineIndex + 1}']}`}
+      className={`flex bg-red-500 flex-row before:content-['${lineIndex + 1}']}`}
     >
-       {line.text.map((segment, index) => (
+       {line.text.length === 0 ? '\u00A0' : line.text.map((segment, index) => (
         <span 
           key={index} 
           style={{ 

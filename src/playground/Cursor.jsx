@@ -139,9 +139,10 @@ export default function Cursor({ playgroundRef }) {
     const flatText = lineData[activeLine].text.map((segment) => segment.content).join('');
     const newPosition = charWidthInPxl(flatText.slice(0, cursorPositionInActiveLine), textSize);
     cursorPositionRef.current = newPosition;
-    cursorRef.current.style.transform = `translate(${newPosition}px, ${(textSize+15) * activeLine}px)`;
+    cursorRef.current.style.transform = `translate(${newPosition}px, ${(textSize) * activeLine}px)`;
   }, [lineData, activeLine, cursorPositionInActiveLine, textSize]);
 
+  // Debug
   function debugText() {
     let lines = [];
     lineData.forEach((line, index) => {
@@ -154,9 +155,10 @@ export default function Cursor({ playgroundRef }) {
   return (
     <div
       ref={cursorRef}
-      className='absolute w-[2px] h-[30px] bg-slate-200'
+      className='absolute w-[2px] bg-slate-200'
       style={{
         transform: `translateX(${cursorPositionRef.current}px)`,
+        height: `${textSize}px`
       }}
     />
   );
