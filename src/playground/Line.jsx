@@ -12,11 +12,12 @@ const Line = memo(function Line({line, lineIndex, isActive}) {
         fontSize: `${textSize}px`,
         lineHeight: '1',
         height: 'fit-content',
+        minHeight:`${textSize}px`,
         width: 'fit-content',
       }} 
-      className={`flex bg-red-500 flex-row before:content-['${lineIndex + 1}']}`}
+      className={`flex relative flex-row before:content-['${lineIndex + 1}']}`}
     >
-       {line.text.length === 0 ? '\u00A0' : line.text.map((segment, index) => (
+       {line.text.map((segment, index) => (
         <span 
           key={index} 
           style={{ 

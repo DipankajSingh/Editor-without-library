@@ -7,7 +7,7 @@ import React, { useCallback } from 'react';
 
 export default function Playground() {
   const playgroundRef = React.useRef(null);
-  const { lineData, activeLine,totalLines } = useEditorContext();
+  const { lineData, activeLine } = useEditorContext();
 
   const renderLine = useCallback((line, index) => (
     <Line 
@@ -16,8 +16,7 @@ export default function Playground() {
       lineIndex={index}
       isActive={index === activeLine}
     />
-  ), [activeLine, totalLines]);
-    console.log("total lines", totalLines)
+  ), [activeLine]);
   return (
     <div ref={playgroundRef} className='relative w-full h-[80vh] p-2 outline outline-1 self-stretch'>
       <Cursor playgroundRef={playgroundRef}/>

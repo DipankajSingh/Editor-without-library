@@ -47,7 +47,7 @@ export default function Cursor({ playgroundRef }) {
     const offset = direction === "left" ? -charWidth : charWidth;
     cursorPositionRef.current = Math.max(0, cursorPositionRef.current + offset);
   
-    cursorRef.current.style.transform = `translateX(${cursorPositionRef.current}px)`;
+    cursorRef.current.style.transform = `translate(${cursorPositionRef.current}px, ${textSize * activeLine}px)`;
   }, [getCurrentCharAtCursor, textSize, playgroundRef]);
 
   // Memoize movement handlers
@@ -143,21 +143,16 @@ export default function Cursor({ playgroundRef }) {
   }, [lineData, activeLine, cursorPositionInActiveLine, textSize]);
 
   // Debug
-  function debugText() {
-    let lines = [];
-    lineData.forEach((line, index) => {
-      lines.push(line.text.map((segment) => segment.content).join(''))
-  
-    });
-      console.log(lines, lineData.length, activeLine, cursorPositionInActiveLine)
-  }
-  debugText()
+  // function debugText() {
+  //     console.log(lineData)
+  // }
+  // debugText()
   return (
     <div
       ref={cursorRef}
-      className='absolute w-[2px] bg-slate-200'
+      className='absolute w-[2px] bg-slate-200 z-50'
       style={{
-        transform: `translateX(${cursorPositionRef.current}px)`,
+        
         height: `${textSize}px`
       }}
     />

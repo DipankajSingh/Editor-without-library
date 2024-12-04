@@ -15,8 +15,5 @@ export function charWidthInPxl(char, textSize) {
   // Set font with Arial as fallback
   context.font = `${textSize}px monospace, Arial, sans-serif`;
   const metrics = context.measureText(char);
-  if(Math.ceil(metrics.width)==16){
-    console.log(metrics.width, `biggest width ${char}`);
-  }
   return metrics.width+threshold; // Round up to ensure no partial pixels
 }

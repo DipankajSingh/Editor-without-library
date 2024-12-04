@@ -45,21 +45,113 @@ export const useEditorContext = () => {
 };
 
 // Line Data Structure
-let lines=[
+let lines = [
   {
     text: [
-      { content: "ine "},
-      { content: "no. ", styles: {color: "purple"}},
-      { content: "1"},
-  ], 
-  length: 9
+      { content: "ine " },
+      { content: "no. ", styles: { color: "purple" } },
+      { content: "1" },
+    ],
+    length: 9
   }
 ]
 
+// Utility functions for text segment operations
+const segmentOperations = {
+  calculateLength: (segments) => segments.reduce((total, seg) => total + seg.content.length, 0),
+
+  createSegment: (content, styles = {}) => ({
+    content,
+    styles: { ...styles }
+  }),
+
+  splitSegment: (segment, position) => ({
+    before: segment.content.slice(0, position),
+    after: segment.content.slice(position)
+  }),
+
+  createSegmentsFromSplit: (segment, { before, after }) => ({
+    beforeSegments: before ? [{ content: before, styles: { ...segment.styles } }] : [],
+    afterSegments: after ? [{ content: after, styles: { ...segment.styles } }] : []
+  })
+};
+
+// Line operations
+const lineOperations = {
+  createEmptyLine: () => {
+    return {
+      text: [{ content: "", styles: {} }],
+      length: 0
+    };
+  },
+
+  createLineWithContent: (content, styles = {}) => ({
+    text: [{ content, styles }],
+    length: content.length
+  }),
+
+  splitLine: (line, segmentIndex, position) => {
+    if (segmentIndex === 0 && position === 0) {
+      return {
+        beforeLine: lineOperations.createEmptyLine(),
+        afterLine: {
+          text: [...line.text],
+          length: segmentOperations.calculateLength(line.text)
+        }
+      };
+    }
+
+    const segment = line.text[segmentIndex];
+    const { before, after } = segmentOperations.splitSegment(segment, position);
+    const { beforeSegments, afterSegments } = segmentOperations.createSegmentsFromSplit(segment, { before, after });
+
+    const beforeLineSegments = [...line.text.slice(0, segmentIndex), ...beforeSegments];
+    const afterLineSegments = [...afterSegments, ...line.text.slice(segmentIndex + 1)];
+
+    return {
+      beforeLine: {
+        text: beforeLineSegments,
+        length: segmentOperations.calculateLength(beforeLineSegments)
+      },
+      afterLine: {
+        text: afterLineSegments,
+        length: segmentOperations.calculateLength(afterLineSegments)
+      }
+    };
+  }
+};
+
+// State update helpers
+const stateUpdaters = {
+  updateLineData: (prevData, index, newLine) => {
+    const newData = [...prevData];
+    newData[index] = newLine;
+    return newData;
+  },
+
+  insertLine: (prevData, index, newLine) => {
+    const newData = [...prevData];
+    newData.splice(index + 1, 0, newLine);
+    return newData;
+  },
+
+  removeLine: (prevData, index) => {
+    const newData = [...prevData];
+    newData.splice(index, 1);
+    return newData;
+  }
+};
+
 // Utility functions
 const findActiveSegment = (currentLine, cursorPosition) => {
+  if (cursorPosition === 0) {
+    return {
+      activeSegmentIndex: 0,
+      positionInSegment: 0
+    };
+  }
+
   let cumulativeLength = 0;
-  
   for (let i = 0; i < currentLine.text.length; i++) {
     const segment = currentLine.text[i];
     if (cumulativeLength + segment.content.length >= cursorPosition) {
@@ -70,7 +162,7 @@ const findActiveSegment = (currentLine, cursorPosition) => {
     }
     cumulativeLength += segment.content.length;
   }
-  
+
   return {
     activeSegmentIndex: currentLine.text.length - 1,
     positionInSegment: currentLine.text[currentLine.text.length - 1].content.length
@@ -95,27 +187,47 @@ const mergeSegments = (prevSegment, currentSegment) => ({
   styles: prevSegment.styles
 });
 
+const shouldMergeLines = (action, currentLine, cursorPos, lineNum) => {
+  return (
+    action === "backspace" &&
+    cursorPos === 0 &&
+    lineNum > 0 &&
+    !currentLine.text.length === 0
+  );
+};
 
+const updateLineContent = (action, char, line, segmentInfo) => {
+  const { activeSegmentIndex, positionInSegment } = segmentInfo;
+  const newSegments = [...line.text];
+  const activeSegment = newSegments[activeSegmentIndex];
 
+  newSegments[activeSegmentIndex] = createUpdatedSegment(
+    activeSegment,
+    positionInSegment,
+    char,
+    action === "char"
+  );
 
+  return {
+    text: newSegments,
+    length: segmentOperations.calculateLength(newSegments)
+  };
+};
 
 export const EditorProvider = ({ children }) => {
   const [activeLine, setActiveLine] = useState(0);
   const [lineData, setLineData] = useState(lines);
-  // Initialize cursor position at the end of the active line
   const [cursorPositionInActiveLine, setCursorPositionInActiveLine] = useState(() => {
-    return lines[0].text.reduce((total, segment) => total + segment.content.length, 0);
+    return segmentOperations.calculateLength(lines[0].text);
   });
   const [textSize, setTextSize] = useState(25);
-
-  const [totalLines, setTotalLines] = useState(() => {
-    return lines.length;
-  });
+  const [totalLines, setTotalLines] = useState(lines.length);
 
   const handleInsertText = useCallback((currentLine, char, segmentInfo) => {
     const { activeSegmentIndex, positionInSegment } = segmentInfo;
     const newSegments = [...currentLine.text];
     const activeSegment = newSegments[activeSegmentIndex];
+
     newSegments[activeSegmentIndex] = createUpdatedSegment(
       activeSegment,
       positionInSegment,
@@ -124,35 +236,33 @@ export const EditorProvider = ({ children }) => {
     );
 
     return {
-      ...currentLine,
       text: newSegments,
-      length: currentLine.length + 1
+      length: segmentOperations.calculateLength(newSegments)
     };
   }, []);
 
   const handleBackspace = useCallback((currentLine, segmentInfo) => {
     const { activeSegmentIndex, positionInSegment } = segmentInfo;
-    
+
     if (positionInSegment === 0 && activeSegmentIndex > 0) {
       const newSegments = [...currentLine.text];
       const mergedSegment = mergeSegments(
         newSegments[activeSegmentIndex - 1],
         newSegments[activeSegmentIndex]
       );
-      
+
       newSegments[activeSegmentIndex - 1] = mergedSegment;
       newSegments.splice(activeSegmentIndex, 1);
 
       return {
-        ...currentLine,
         text: newSegments,
-        length: currentLine.length - 1
+        length: segmentOperations.calculateLength(newSegments)
       };
     }
-    
+
     const newSegments = [...currentLine.text];
     const activeSegment = newSegments[activeSegmentIndex];
-    
+
     newSegments[activeSegmentIndex] = createUpdatedSegment(
       activeSegment,
       positionInSegment,
@@ -161,37 +271,89 @@ export const EditorProvider = ({ children }) => {
     );
 
     return {
-      ...currentLine,
       text: newSegments,
-      length: currentLine.length - 1
+      length: segmentOperations.calculateLength(newSegments)
     };
   }, []);
 
+  const mergeLines = useCallback((lineToMerge = activeLine, lineToMergeWith = 0) => {
+    const line1 = lineData[lineToMerge];
+    const line2 = lineData[lineToMergeWith];
+    const mergedLine = {
+      text: [...line1.text, ...line2.text],
+      length: line1.length + line2.length
+    };
+
+    setLineData(prevData => {
+      const newData = stateUpdaters.updateLineData(prevData, lineToMerge, mergedLine);
+      return stateUpdaters.removeLine(newData, lineToMergeWith);
+    });
+    setActiveLine(lineToMerge);
+    setCursorPositionInActiveLine(mergedLine.length);
+  }, [activeLine, lineData]);
+
+  const handleEnterPress = useCallback(() => {
+    const currentLine = lineData[activeLine];
+
+    if (cursorPositionInActiveLine === currentLine.length || !currentLine.text.length) {
+      setLineData(prevData => 
+        stateUpdaters.insertLine(
+          prevData,
+          activeLine,
+          lineOperations.createEmptyLine()
+        )
+      );
+      setActiveLine(prev => prev + 1);
+      setCursorPositionInActiveLine(0);
+      return;
+    }
+
+    const { activeSegmentIndex, positionInSegment } = findActiveSegment(currentLine, cursorPositionInActiveLine);
+    const { beforeLine, afterLine } = lineOperations.splitLine(currentLine, activeSegmentIndex, positionInSegment);
+
+    setLineData(prevData => {
+      const updatedData = stateUpdaters.updateLineData(prevData, activeLine, beforeLine);
+      return stateUpdaters.insertLine(updatedData, activeLine, afterLine);
+    });
+
+    setActiveLine(activeLine + 1);
+    setCursorPositionInActiveLine(0);
+  }, [activeLine, cursorPositionInActiveLine, lineData]);
+
   const updateActiveLine = useCallback((char, action) => {
     const currentLine = lineData[activeLine];
-    
-    if (action === "backspace" && cursorPositionInActiveLine === 0) return;
-    
+
+    if (action === "backspace" && currentLine.length === 0) {
+      const newLineData = [...lineData];
+      newLineData.splice(activeLine, 1);
+      setLineData(newLineData);
+      setActiveLine((prev) => Math.max(0, prev - 1));
+      setCursorPositionInActiveLine(lineData[activeLine].length);
+      return;
+    }
+
+    if (shouldMergeLines(action, currentLine, cursorPositionInActiveLine, activeLine)) {
+      mergeLines(activeLine, activeLine - 1);
+      setCursorPositionInActiveLine(0);
+      return;
+    }
+
     const segmentInfo = findActiveSegment(currentLine, cursorPositionInActiveLine);
-    
-    const updatedLine = action === "char"
-      ? handleInsertText(currentLine, char, segmentInfo)
-      : handleBackspace(currentLine, segmentInfo);
-    
-    setLineData(prev => {
+    const updatedLine = updateLineContent(action, char, currentLine, segmentInfo);
+
+    setLineData((prev) => {
       const newData = [...prev];
       newData[activeLine] = updatedLine;
       return newData;
     });
 
-    // Update cursor position after text insertion
-    if (action === "char") {
-      setCursorPositionInActiveLine(prev => prev + 1);
-    } else if (action === "backspace") {
-      setCursorPositionInActiveLine(prev => Math.max(0, prev - 1));
-    }else if(action==="Delete"){
-      setCursorPositionInActiveLine(prev => Math.max(0, prev + 1));
-    }
+    setCursorPositionInActiveLine((prev) => {
+      if (action === "char") {
+        return prev + 1;
+      } else if (action === "backspace") {
+        return prev - 1;
+      }
+    });
   }, [lineData, activeLine, cursorPositionInActiveLine, handleInsertText, handleBackspace]);
 
   const handleCursorPositionChange = useCallback((newCursorPositionInActiveLine) => {
@@ -199,89 +361,27 @@ export const EditorProvider = ({ children }) => {
   }, []);
 
   const handleActiveLineChange = useCallback((newActiveLine) => {
-    console.log('Line changed');
     setActiveLine(newActiveLine);
   }, []);
- 
+
   const handleLineDataChange = useCallback((newLineData) => {
     setLineData(newLineData);
   }, []);
 
-  function handleEnterPress() {
-    const currentLine = lineData[activeLine];
-    
-
-    function createLine(content="") {
-      handleLineDataChange([...lineData, {
-        text: [{ content, styles: {} }],
-        length: content.length
-      }]);
-      handleActiveLineChange(activeLine + 1);
-    }
-
-    // if active line dont have text just add a new line
-  if((cursorPositionInActiveLine === currentLine.length) || (!currentLine.text.length)) {
-      createLine()
-    } else {
-      newLineWithTextFromCurrentLine();
-    }
-
-
-    function newLineWithTextFromCurrentLine() {
-      const currentLine = lineData[activeLine];
-      const { activeSegmentIndex, positionInSegment } = findActiveSegment(currentLine, cursorPositionInActiveLine);
-      const currentSegment = currentLine.text[activeSegmentIndex];
-      
-      // Split the active segment
-      const beforeContent = currentSegment.content.slice(0, positionInSegment);
-      const afterContent = currentSegment.content.slice(positionInSegment);
-      
-      // Create segments for both lines
-      const beforeSegments = [
-        ...currentLine.text.slice(0, activeSegmentIndex),
-        ...(beforeContent ? [{ content: beforeContent, styles: { ...currentSegment.styles } }] : [])
-      ];
-      
-      const afterSegments = [
-        ...(afterContent ? [{ content: afterContent, styles: { ...currentSegment.styles } }] : []),
-        ...currentLine.text.slice(activeSegmentIndex + 1)
-      ];
-      
-      // Create new lines with preserved styles
-      const updatedCurrentLine = {
-        text: beforeSegments,
-        length: beforeSegments.reduce((total, seg) => total + seg.content.length, 0)
-      };
-      
-      const newLine = {
-        text: afterSegments,
-        length: afterSegments.reduce((total, seg) => total + seg.content.length, 0)
-      };
-      
-      // Update line data with the split lines
-      const newLineData = [...lineData];
-      newLineData[activeLine] = updatedCurrentLine;
-      newLineData.splice(activeLine + 1, 0, newLine);
-      handleLineDataChange(newLineData);
-      handleActiveLineChange(activeLine + 1);
-      handleCursorPositionChange(0); // Move cursor to start of new line
-    }
-  }
-
   return (
     <EditorContext.Provider value={{
-      lineData, 
-      handleLineDataChange, 
-      activeLine, 
-      cursorPositionInActiveLine, 
-      handleCursorPositionChange, 
+      lineData,
+      handleLineDataChange,
+      activeLine,
+      cursorPositionInActiveLine,
+      handleCursorPositionChange,
       handleActiveLineChange,
       updateActiveLine,
       textSize,
       setTextSize,
       handleEnterPress,
       totalLines
-      }}>
+    }}>
       {children}
     </EditorContext.Provider>
   );
