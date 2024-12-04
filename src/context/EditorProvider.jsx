@@ -48,7 +48,7 @@ export const useEditorContext = () => {
 let lines = [
   {
     text: [
-      { content: "ine " },
+      { content: "Line " },
       { content: "no. ", styles: { color: "purple" } },
       { content: "1" },
     ],
@@ -222,7 +222,6 @@ export const EditorProvider = ({ children }) => {
   });
   const [textSize, setTextSize] = useState(25);
   const [totalLines, setTotalLines] = useState(lines.length);
-
   const handleInsertText = useCallback((currentLine, char, segmentInfo) => {
     const { activeSegmentIndex, positionInSegment } = segmentInfo;
     const newSegments = [...currentLine.text];
@@ -368,6 +367,10 @@ export const EditorProvider = ({ children }) => {
     setLineData(newLineData);
   }, []);
 
+  const handleTextColorChange = useCallback((newTextColor) => {
+    // Implement the logic to update the text color
+  }, []);
+
   return (
     <EditorContext.Provider value={{
       lineData,
@@ -380,7 +383,8 @@ export const EditorProvider = ({ children }) => {
       textSize,
       setTextSize,
       handleEnterPress,
-      totalLines
+      totalLines,
+      handleTextColorChange
     }}>
       {children}
     </EditorContext.Provider>
