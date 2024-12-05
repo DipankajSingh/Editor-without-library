@@ -85,6 +85,10 @@ export default function Cursor({ playgroundRef }) {
     updateActiveLine(char, "char");
     handleCursorPositionChange(cursorPositionInActiveLine + 1);
     // Only update cursor position if not at the end of line
+    if(lineData.length === 0) {
+      console.log("lineData is empty",lineData);
+      return;
+    }
     const currentLine = lineData[activeLine];
     const isEndOfLine = cursorPositionInActiveLine === currentLine.length;
     if (!isEndOfLine) {
@@ -136,6 +140,9 @@ export default function Cursor({ playgroundRef }) {
 
   // Update cursor position when lineData, activeLine, or cursorPositionInActiveLine changes
   useEffect(() => {
+    if(lineData.length === 0) {
+      return;
+    }
     const flatText = lineData[activeLine].text.map((segment) => segment.content).join('');
     const newPosition = charWidthInPxl(flatText.slice(0, cursorPositionInActiveLine), textSize);
     cursorPositionRef.current = newPosition;

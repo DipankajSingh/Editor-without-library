@@ -1,4 +1,4 @@
-import React, { createContext, useState, useCallback } from 'react';
+import React, { createContext, useState, useCallback, useRef } from 'react';
 
 /**
  * @typedef {Object} TextStyle
@@ -52,7 +52,7 @@ let lines = [
       { content: "no. ", styles: { color: "purple" } },
       { content: "1" },
     ],
-    length: 9
+    length: 10
   }
 ]
 
@@ -60,12 +60,12 @@ let lines = [
 const segmentOperations = {
   calculateLength: (segments) => segments.reduce((total, seg) => total + seg.content.length, 0),
 
-  createSegment: (content, styles = {}) => ({
+  createSegment: (content="", styles = {}) => ({
     content,
     styles: { ...styles }
   }),
 
-  splitSegment: (segment, position) => ({
+  splitSegment: (segment, position=0) => ({
     before: segment.content.slice(0, position),
     after: segment.content.slice(position)
   }),
@@ -73,14 +73,19 @@ const segmentOperations = {
   createSegmentsFromSplit: (segment, { before, after }) => ({
     beforeSegments: before ? [{ content: before, styles: { ...segment.styles } }] : [],
     afterSegments: after ? [{ content: after, styles: { ...segment.styles } }] : []
+  }),
+
+  mergeMultipleSegments: (segments=[]) => ({
+    content: segments.map((segment) => segment.content).join(''),
+    styles: segments[0].styles
   })
 };
 
 // Line operations
 const lineOperations = {
-  createEmptyLine: () => {
+  createEmptyLine: (styles) => {
     return {
-      text: [{ content: "", styles: {} }],
+      text: [{ content: "", styles: { ...styles } }],
       length: 0
     };
   },
@@ -93,7 +98,7 @@ const lineOperations = {
   splitLine: (line, segmentIndex, position) => {
     if (segmentIndex === 0 && position === 0) {
       return {
-        beforeLine: lineOperations.createEmptyLine(),
+        beforeLine: lineOperations.createEmptyLine(line.text[0].styles),
         afterLine: {
           text: [...line.text],
           length: segmentOperations.calculateLength(line.text)
@@ -131,6 +136,7 @@ const stateUpdaters = {
 
   insertLine: (prevData, index, newLine) => {
     const newData = [...prevData];
+    console.log(newLine);
     newData.splice(index + 1, 0, newLine);
     return newData;
   },
@@ -215,6 +221,8 @@ const updateLineContent = (action, char, line, segmentInfo) => {
 };
 
 export const EditorProvider = ({ children }) => {
+  const tempSegment=useRef(null);
+  const [activeColor, setActiveColor] = useState("#ffffff");
   const [activeLine, setActiveLine] = useState(0);
   const [lineData, setLineData] = useState(lines);
   const [cursorPositionInActiveLine, setCursorPositionInActiveLine] = useState(() => {
@@ -222,6 +230,8 @@ export const EditorProvider = ({ children }) => {
   });
   const [textSize, setTextSize] = useState(25);
   const [totalLines, setTotalLines] = useState(lines.length);
+  const [isColorWasChanged, setIsColorWasChanged] = useState(false);
+
   const handleInsertText = useCallback((currentLine, char, segmentInfo) => {
     const { activeSegmentIndex, positionInSegment } = segmentInfo;
     const newSegments = [...currentLine.text];
@@ -291,15 +301,17 @@ export const EditorProvider = ({ children }) => {
     setCursorPositionInActiveLine(mergedLine.length);
   }, [activeLine, lineData]);
 
+// Function to handle Enter key press
   const handleEnterPress = useCallback(() => {
     const currentLine = lineData[activeLine];
 
     if (cursorPositionInActiveLine === currentLine.length || !currentLine.text.length) {
+      console.log("empty line or cursor at end of line");
       setLineData(prevData => 
         stateUpdaters.insertLine(
           prevData,
           activeLine,
-          lineOperations.createEmptyLine()
+          lineOperations.createEmptyLine({color: activeColor})
         )
       );
       setActiveLine(prev => prev + 1);
@@ -320,9 +332,13 @@ export const EditorProvider = ({ children }) => {
   }, [activeLine, cursorPositionInActiveLine, lineData]);
 
   const updateActiveLine = useCallback((char, action) => {
+    if(lineData.length === 0) return;
     const currentLine = lineData[activeLine];
 
     if (action === "backspace" && currentLine.length === 0) {
+      if (activeLine === 0 && currentLine.length === 0 ) {
+        return;
+      }
       const newLineData = [...lineData];
       newLineData.splice(activeLine, 1);
       setLineData(newLineData);
@@ -334,6 +350,14 @@ export const EditorProvider = ({ children }) => {
     if (shouldMergeLines(action, currentLine, cursorPositionInActiveLine, activeLine)) {
       mergeLines(activeLine, activeLine - 1);
       setCursorPositionInActiveLine(0);
+      return;
+    }
+
+    if(isColorWasChanged) {
+      tempSegment.current.content=char;
+      currentLine.length=segmentOperations.calculateLength(currentLine.text);
+      setIsColorWasChanged(false);
+      tempSegment.current=null;
       return;
     }
 
@@ -367,10 +391,43 @@ export const EditorProvider = ({ children }) => {
     setLineData(newLineData);
   }, []);
 
+  // Function to handle text color change
   const handleTextColorChange = useCallback((newTextColor) => {
-    // Implement the logic to update the text color
-  }, []);
+    setActiveColor(newTextColor);
+    const currentLine = lineData[activeLine];
+    const { activeSegmentIndex, positionInSegment } = findActiveSegment(currentLine, cursorPositionInActiveLine);
+    const activeSegment = currentLine.text[activeSegmentIndex];
+    
+    const newSegment = segmentOperations.createSegment('', { color: newTextColor });
+    tempSegment.current = newSegment;
 
+    const { before, after } = segmentOperations.splitSegment(activeSegment, positionInSegment);
+    const { beforeSegments, afterSegments } = segmentOperations.createSegmentsFromSplit(activeSegment, { before, after });
+
+    const updatedLine = stateUpdaters.updateLineData(
+      lineData,
+      activeLine,
+      {
+        text: [
+          ...currentLine.text.slice(0, activeSegmentIndex),
+          ...beforeSegments,
+          newSegment,
+          ...afterSegments,
+          ...currentLine.text.slice(activeSegmentIndex + 1)
+        ],
+        length: currentLine.length
+      }
+    )[activeLine];
+
+    setLineData(prev => {
+      const newData = [...prev];
+      newData[activeLine] = updatedLine;
+      return newData;
+    });
+
+    setIsColorWasChanged(true);
+  }, [activeColor, activeLine, cursorPositionInActiveLine]);
+    
   return (
     <EditorContext.Provider value={{
       lineData,
@@ -384,7 +441,7 @@ export const EditorProvider = ({ children }) => {
       setTextSize,
       handleEnterPress,
       totalLines,
-      handleTextColorChange
+      handleTextColorChange,
     }}>
       {children}
     </EditorContext.Provider>
