@@ -1,6 +1,8 @@
 #root {
+  display: grid;
+  place-items: center;
   width: 100%;
-  max-width: 1280px;
+ 
   padding: 1rem;
   background-color: #13021f;
   height: 100vh;

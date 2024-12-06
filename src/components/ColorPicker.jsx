@@ -13,9 +13,10 @@ const presetColors = {
 
 function ColorPicker() {
   const [textColor, setTextColor] = useState('#ffffff');
-  const { handleTextColorChange } = useEditorContext();
+  const { handleTextColorChange, tempSegment } = useEditorContext();
 
   const handleColorChange = (hexValue) => {
+    tempSegment.current=null;
     setTextColor(hexValue);
     handleTextColorChange(hexValue);
   };

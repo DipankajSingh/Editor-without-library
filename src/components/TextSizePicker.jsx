@@ -21,6 +21,7 @@ export default function TextSizePicker() {
     const handleTextSizeChange = (event) => {
       const newSize = parseInt(event.target.value);
       setTextSize(newSize);
+      document.getElementById("playground").focus();
     };
 
   return (

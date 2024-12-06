@@ -1,39 +1,5 @@
 import React, { createContext, useState, useCallback, useRef } from 'react';
 
-/**
- * @typedef {Object} TextStyle
- * @property {boolean} [bold] - Whether the text is bold
- * @property {string} [color] - Text color (e.g., "red")
- */
-
-/**
- * @typedef {Object} TextSegment
- * @property {string} content - The text content
- * @property {TextStyle} styles - Styling information for this segment
- */
-
-/**
- * @typedef {Object} LineData
- * @property {TextSegment[]} text - Array of text segments with their styles
- * @property {number} length - Total length of the line
- * @property {number} textSize - Size of the text
- */
-
-/**
- * @typedef {Object} EditorContextType
- * @property {LineData[]} lineData - Array of line data
- * @property {(newLineData: LineData[]) => void} handleLineDataChange - Function to update line data
- * @property {number} activeLine - Current active line number
- * @property {number} cursorPositionInActiveLine - Cursor position in the active line
- * @property {(newPosition: number) => void} handleCursorPositionChange - Function to update cursor position
- * @property {(newLine: number) => void} handleActiveLineChange - Function to change active line
- */
-
-/**
- * React Context for the code editor
- * Provides state and functions for managing editor content, cursor position, and line data
- * @type {React.Context<EditorContextType>}
- */
 export const EditorContext = createContext();
 
 export const useEditorContext = () => {
@@ -45,14 +11,12 @@ export const useEditorContext = () => {
 };
 
 // Line Data Structure
-let lines = [
+export let lines = [
   {
     text: [
-      { content: "Line " },
-      { content: "no. ", styles: { color: "purple" } },
-      { content: "1" },
+      { content: "", styles: {color: "#00ff00"} },
     ],
-    length: 10
+    length: 0
   }
 ]
 
@@ -442,6 +406,8 @@ export const EditorProvider = ({ children }) => {
       handleEnterPress,
       totalLines,
       handleTextColorChange,
+      setLineData,
+      tempSegment
     }}>
       {children}
     </EditorContext.Provider>

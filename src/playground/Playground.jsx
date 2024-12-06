@@ -18,7 +18,7 @@ export default function Playground() {
     />
   ), [activeLine]);
   return (
-    <div ref={playgroundRef} className='relative w-full h-[80vh] p-2 outline outline-1 self-stretch'>
+    <div id="playground" tabIndex={0} ref={playgroundRef} className='relative w-full h-full p-2 outline outline-1 self-stretch'>
       <Cursor playgroundRef={playgroundRef}/>
       {lineData.map(renderLine)}
     </div>
