@@ -5,7 +5,7 @@ import Playground from './playground/Playground'
 function App() {
   console.log("App");
   return (
-    <div  className='w-full h-full flex flex-col'>
+    <div  className='w-full h-full flex flex-col overflow-hidden'>
       <Nav />
       <Playground />
     </div>

@@ -157,7 +157,8 @@ export default function Cursor({ playgroundRef }) {
   return (
     <div
       ref={cursorRef}
-      className='absolute w-[2px] bg-slate-200 z-50'
+      
+      className='blink absolute duration-75 w-[2px] bg-slate-200 z-50'
       style={{
         
         height: `${textSize}px`
